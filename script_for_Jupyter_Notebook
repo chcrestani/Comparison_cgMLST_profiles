@@ -1,0 +1,53 @@
+######
+# This script takes in a table of cgMLST (or MLST) allelic profiles with each column representing an isolate and each row representing a locus('profiles.csv', no index column).
+# The script is built to compare the profile of a reference isolate (column 'isolate_name') with that of other isolates whose name starts with the same prefix ('isolate_name_XXXXXXX').
+# In the original work, it was used to compare a reference short-read assembly (Illumina) with various long-read assemblies (generated e.g., with different depths of coverage, or basecalling algorithms)
+# The script is conceived to be launched on Jupyter Notebook.
+# Please note you should substitute 'isolate_name' with the name of the Illumina assembly and 'profiles.csv' with the name of your dataframe containing the alleleic profiles before running the script.
+# 
+# Missing loci in the Illumina assembly are masked and therefore are not included in the comparison. The results are stored as total number of mismatches in a dataframe ('df_isolate_name')
+#'
+# Chiara Crestani 20240626
+#####
+
+
+# Import libraries 
+import pandas as pd
+import numpy as np
+
+
+#Read dataframe with alleles transposed (column names must be isolate names or IDs)
+df = pd.read_csv('profiles.csv')
+
+# Fill NaN values with 0 and convert to integers
+df.fillna(value=0, inplace=True)
+df = df.astype(int)
+
+#Comparison of the alleles of the Illumina assembly against all others, but only for alleles that were found in the Illumina assembly
+mask = df['isolate_name'] != 0
+
+# Initialize the result DataFrame
+df2 = pd.DataFrame()
+
+# Function to compare columns and add results
+def compare_columns(df, mask, prefix):
+    # Identify columns that start with the given prefix
+    relevant_columns = [col for col in df.columns if col.startswith(prefix) and col != prefix]
+    
+    # Perform comparisons for each relevant column
+    for column_name in relevant_columns:
+        result_column_name = f'{prefix}_vs_{column_name}'
+        # Perform the comparison only where the mask is True
+        df2.loc[mask, result_column_name] = df.loc[mask, prefix] == df.loc[mask, column_name]
+
+# Compare all columns that start with 'isolate_name'
+compare_columns(df, mask, 'isolate_name')
+
+# Convert False to 1 (mismatch) and True to 0 (no mismatch)
+df2 = df2.map(lambda x: 0 if x == True else 1)
+
+# Sum the number of mismatches
+sum_results = df2.sum()
+
+# Store the sum results in a DataFrame
+df_isolate_name = pd.DataFrame(sum_results, columns=['n_mismatches'])
